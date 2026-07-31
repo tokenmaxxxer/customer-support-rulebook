@@ -116,6 +116,76 @@ no test harness, and `directive.sh` is still the plain 4-field call
 with no phase/facet depth. All four must-bes are open gaps this
 issue's proposal must close; none is already met.
 
+## Re-scout addendum (2026-07-31, approver FEEDBACK on PR #11)
+
+New decisions surfaced mid-build, not covered by the original sweep
+above: (1) the Impact×Urgency matrix's source standard must be named
+explicitly rather than inherited by reference from
+`docs/issue-1/proposals/customer-support.md`; (2) whether KCS
+(Knowledge-Centered Service) should be adopted as the canonical
+methodology for this role's handbook-production output; (3) whether
+5-whys reliance should be reconsidered against wider problem-management
+practice. One micro-round, web search (parallel, this session), judge
+point after one round — sufficient, no further round needed:
+
+1. **ITIL, named explicitly.** The Impact×Urgency priority matrix is
+   ITIL's service-desk incident-prioritization method (impact × urgency
+   → priority), documented across ITIL-aligned ITSM vendor guides
+   (ManageEngine, InvGate, Freshworks — see Sources). `docs/issue-1/
+   proposals/customer-support.md` §3 already names "ITIL impact×urgency
+   matrix" as the basis; this issue's own proposal (§2.1) previously
+   only said "an Impact×Urgency pair" with no standard name attached —
+   gap closed by citing ITIL directly in this document, not only by
+   reference to issue-1.
+
+2. **KCS (Knowledge-Centered Service) — must-be for handbook-production
+   roles.** KCS is the Consortium for Service Innovation's methodology
+   (KCS® registered service mark) for producing and maintaining support
+   knowledge content as a by-product of the support workflow itself.
+   Its **Content Standard** defines the canonical article shape:
+   **Issue** (the question/problem as the customer/agent experiences
+   it) → **Environment** (context that scopes when it applies) →
+   **Resolution** (the actual fix/answer) → **Cause** (root cause, when
+   known) → **Metadata** (reuse/lifecycle fields — e.g. a article
+   maturity/state field). This is a direct structural fit for
+   `customer-support`'s deliverable: the same shape as a playbook
+   scenario entry, formalized under a named external standard instead
+   of an ad hoc "trigger/decision-criteria/script/escalation-condition"
+   list invented without citation. Segment fit: KCS explicitly targets
+   any support-knowledge-producing function regardless of org size —
+   the "solve loop" (capture knowledge at point of use, reuse before
+   research, evolve content collaboratively) applies as directly to a
+   single-operator desk as to a large contact center, unlike COPC
+   certification scaffolding (already skipped, per original brief, as
+   disproportionate to org size).
+
+3. **5-whys — reconsidered, not dropped.** ITIL problem-management
+   literature treats 5-whys as one of several root-cause-analysis
+   techniques (alongside Ishikawa/fishbone and Kepner-Tregoe), and is
+   explicit that 5-whys "is best used on simple to moderately difficult
+   problems" and "tends to limit the analysis to just one avenue of
+   root cause identification" for problems with multiple root causes —
+   it is not a universal RCA default even within ITIL's own practice.
+   This does not overturn the original adopt-pattern (5-whys is still
+   the right minimal tool for *this* role's segment — a single-operator
+   support desk deciding "hand off or not," not running formal problem
+   management with a KEDB), but the proposal's §2.5/§3 must now state
+   this scope bound explicitly rather than cite 5-whys as if it were
+   the field's uncontested default: 5-whys stays the required minimum
+   check, but a recurring pattern that resists a clean single-chain
+   5-whys answer (i.e. the 5 answers don't converge on one cause) must
+   route to product-discovery on that basis alone, rather than forcing
+   a strained single-cause 5-whys narrative — the gate can only check
+   presence of 5 question-lines (shape, not correctness, per open
+   question 2, unchanged), so this scope bound is directive-level
+   judgment, not a new gate check.
+
+Mode: parallel WebSearch (2 queries, one turn) — genuine fan-out, not
+serialized. Stage count: 1 (sufficient; judged at JUDGE POINT 1 that a
+second round would not change the build decision — KCS's Content
+Standard and the ITIL RCA literature's own scope caveat both directly
+resolved the three open decisions).
+
 ## Sources
 
 - `customer-support/hooks/directive.sh`,
@@ -130,3 +200,10 @@ issue's proposal must close; none is already met.
 - `~/.tokenmaxxxer/work/tokenmaxxxer-core-issue-69-implementation/docs/handbooks/role-gates-tests.md`
 - `~/.tokenmaxxxer/work/tokenmaxxxer-core-issue-69-implementation/docs/handbooks/canon-scripts.md`
 - `~/.tokenmaxxxer/work/tokenmaxxxer-core-issue-69-implementation/core/hooks/lib/role-directive.sh`
+- https://library.serviceinnovation.org/KCS/KCS_v6/KCS_Principles_and_Core_Concepts
+- https://library.serviceinnovation.org/KCS/KCS_v6/KCS_v6_Practices_Guide/020
+- https://www.teamdynamix.com/blog/knowledge-centered-service-101-understanding-the-basics-of-kcs/
+- https://en.wikipedia.org/wiki/Knowledge-centered_support
+- https://www.manageengine.com/products/service-desk/itsm/problem-management-techniques.html
+- https://blog.invgate.com/4-problem-management-root-cause-analysis-techniques-explained
+- https://kepner-tregoe.com/blogs/how-5-whys-and-fishbone-diagrams-relate-to-kt-problem-analysis/
