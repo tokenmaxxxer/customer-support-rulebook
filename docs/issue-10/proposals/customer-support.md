@@ -1,281 +1,277 @@
-# Proposal: enforce the adopted methodology as plugin machinery (issue-10)
+# Proposal: enforce the adopted methodology as an independent plugin set (issue-10)
 
-Subject: issue-10. Phase 1 only — no file under `customer-support/` is
-edited in this PR; the scripts below are specified in full but not
-committed until an Approve opens phase 2. Basis:
+Subject: issue-10. Phase 1 only — nothing under `customer-support/` or any
+new plugin directory is edited in this PR; everything below is specified
+in full but not committed until an Approve opens phase 2. Basis:
 `docs/issue-10/reports/customer-support/survey.md` (current-state) and
 `docs/issue-10/reports/customer-support/scout-brief.md` (internal
-precedent — `pricing/hooks/methodology-gate.sh`, core's
-`record-fields-gate.sh`, `warrant`'s state/directive scripts). Norm
-source: `docs/issue-1/proposals/customer-support.md` (the adopted
-methodology this issue enforces) — no new external methodology claim
-is made here; every requirement below cites back to that document's
-§2/§3.
+precedent). Norm source: `docs/issue-1/proposals/customer-support.md`
+(the adopted methodology this issue enforces) — no new external
+methodology claim is made; every requirement below cites back to that
+document's §2/§3.
 
-## 1. Directive deepening (phase 1 / phase 2, facet-level)
+**Revision note**: this replaces the prior draft (single directive
+deepening + one monolithic `methodology-gate.sh` inside the
+`customer-support` plugin), per the approver's structural correction on
+PR #11 — restructured below as a **plugin set**: one independently
+loadable plugin per methodology, phase-1 and phase-2 norms each stated
+as which plugins compose to form them, not as a bundle of edits to the
+existing single plugin.
 
-`core_role_directive`'s call shape is unchanged (core's shared lib
-signature — `role-directive.sh`'s 4 positional args — is out of scope;
-role boundaries are unchanged). What changes is a **second**
-SessionStart hook, `customer-support/hooks/methodology-directive.sh`,
-heredoc-emitting a facet-level protocol block — the shape
-`warrant/hooks/directive.sh` already uses for content too rich for 4
-one-line fields (scout-brief must-be #3/adopt). Registered in
-`hooks.json`'s existing `SessionStart` array, after `directive.sh`.
+## 0. Plugin list (mandatory)
 
-Content (verbatim script body, phase 2 write):
+| # | Plugin (dir) | Methodology owned | Components | Composes into |
+|---|---|---|---|---|
+| 1 | `customer-support-sla-tier` | Impact×Urgency SLA-tier table (§2 SLA table) | `hooks/directive-fragment.sh` (SessionStart), `hooks/gate.sh` (PreToolUse), `hooks/hooks.json`, `.claude-plugin/plugin.json` | phase-2 norm |
+| 2 | `customer-support-escalation-path` | trigger/owner/timeout escalation tiers (§2 escalation path) | same shape as #1 | phase-2 norm |
+| 3 | `customer-support-playbook-scenario` | trigger/decision-criteria/script/escalation-condition per scenario (§2 playbook) | same shape as #1 | phase-2 norm |
+| 4 | `customer-support-evidence-metric` | CSAT/FCR/SLA-adherence citation requirement (§2 evidence metric) | same shape as #1 | phase-2 norm |
+| 5 | `customer-support-five-whys` | repeat-pattern 5-whys check before hand-off decision (§2 5-whys) | `hooks/directive-fragment.sh`, `hooks/gate.sh`, `hooks/hooks.json`, `plugin.json`, **plus** `checklists/5-whys-recurring.md` (only plugin with a non-hook artifact — the procedure is repeated, per issue's "필요 시" clause) | phase-2 norm |
+| 6 | `customer-support-phase1-order` | 3-artifact phase-1 order + uncited-claim prohibition (§1: survey → scout-brief → proposal, every adopted element traced to a scout-brief source) | `hooks/directive-fragment.sh`, `hooks/gate.sh`, `hooks/hooks.json`, `plugin.json` | phase-1 norm |
+| — | `customer-support` (existing) | role identity, hand-off, write-scope (unchanged) | `hooks/directive.sh` (4-field summary, unchanged), `hooks/hooks.json` (unchanged entries) | both norms — the role plugin stays the "who/where"; the 6 methodology plugins above are the "what must be true," stacked on top the same way `core`+role+session skills already stack for this role today |
 
-```
-#!/usr/bin/env bash
-# SessionStart hook: methodology-facet deepening on top of directive.sh's
-# 4-field summary. Kill switch: export CUSTOMER_SUPPORT_METHODOLOGY_OFF=1
-case "${CUSTOMER_SUPPORT_METHODOLOGY_OFF:-}" in
-  ""|0|false|no|off) ;;
-  *) exit 0 ;;
-esac
-[ "${CLAUDE_ROLE:-}" = "customer-support" ] || exit 0
+Each of #1–#6 is a **self-contained plugin**: own `.claude-plugin/plugin.json`
+manifest, own `hooks.json`, own gate script, own directive fragment, own
+root-`tests/` file — freelunch-worker-level completeness per plugin, not
+a shared file edited six times. None depends on another's internals;
+composition happens only because all six are registered for the same
+role/session and target overlapping write surfaces (§2 below), the exact
+mechanism `core`/`freelunch`/`scout` already compose by today. This
+mirrors `pricing-rulebook`'s single `methodology-gate.sh` in shape
+(fail-closed, kill-switch, `has_any`-style element check) but never
+copies it — see `docs/handbooks/canon-scripts.md`: none of these six
+files is `core/` canon, so each is genuinely new, role-specific content.
 
-cat <<'EOF'
-<customer-support-methodology priority="high">
-Per docs/issue-1/proposals/customer-support.md (adopted methodology).
+New top-level `marketplace.json` entries (phase 2, additive — the
+existing `customer-support` entry is untouched):
 
-PHASE 1 (proposal, this issue's own norm — bootstrapped by
-docs/issue-1/proposals/customer-support.md itself):
-- Produce exactly 3 artifacts in order: survey.md (read the actual
-  current directive.sh/hooks.json/handbook.md/record — no proposal
-  claims a gap it did not check), scout-brief.md (sourced, cite
-  file/URL per claim), proposals/customer-support.md (ties every
-  adopted element back to a scout-brief must-be/source, never asserted
-  independently).
-- PROHIBITED: proposing a §2 structural change (SLA columns,
-  escalation fields, playbook elements, evidence metric, 5-whys) with
-  no scout-brief citation backing it. An uncited structural claim is a
-  guess, not an adoption.
-
-PHASE 2 (delivery), per facet:
-- SLA table: every row must be Impact x Urgency -> tier (derived, not
-  asserted); all 6 columns present (tier, impact, urgency, first-
-  response target, resolution target, escalation-trigger time).
-  JUDGMENT: a tier with no impact/urgency pair behind it fails this
-  norm even if a plausible-looking tier label is present.
-- Escalation path: every tier states trigger condition + named owner
-  (a role/title, never "the team") + timeout. PROHIBITED: a bare
-  "escalate to manager if unresolved" line.
-- Playbook scenario: trigger/scenario + decision criteria (referencing
-  the impact/urgency matrix) + script/response template + escalation
-  condition (naming the specific escalation-path tier). PROHIBITED: a
-  script with no escalation condition, or an escalation condition that
-  doesn't name a tier defined above.
-- Evidence metric: at least one of CSAT/FCR/SLA-adherence named and
-  tied to what the deliverable does to move it. PROHIBITED: citing a
-  metric by name with no sentence connecting it to the design.
-- 5-whys: any scenario/entry describing a *repeat* inbound pattern
-  must answer all 5 questions (docs/issue-1 handbook.md §5 shape)
-  before stating a hand-off-vs-keep decision. PROHIBITED: writing
-  "hand off to product-discovery" for a flagged-repeat entry with no
-  5-whys answers preceding it in the same entry.
-- Record (docs/issue-<n>/reports/customer-support.md): on top of
-  contract §20's generic fields (record-fields-gate.sh, core canon,
-  unchanged), state which evidence metric(s) were cited and confirm
-  the SLA-table/escalation-path structural checks above passed for the
-  delivered content.
-
-These facet rules are what methodology-gate.sh (customer-support's own,
-role-local) checks mechanically on write. This directive states the
-judgment; the gate states the floor.
-</customer-support-methodology>
-EOF
-exit 0
+```json
+{ "name": "customer-support-sla-tier", "source": "./customer-support-sla-tier", "description": "SLA-tier table gate (issue-10)." },
+{ "name": "customer-support-escalation-path", "source": "./customer-support-escalation-path", "description": "Escalation-path field gate (issue-10)." },
+{ "name": "customer-support-playbook-scenario", "source": "./customer-support-playbook-scenario", "description": "Playbook-scenario element gate (issue-10)." },
+{ "name": "customer-support-evidence-metric", "source": "./customer-support-evidence-metric", "description": "Evidence-metric citation gate (issue-10)." },
+{ "name": "customer-support-five-whys", "source": "./customer-support-five-whys", "description": "5-whys recurring-pattern gate + checklist (issue-10)." },
+{ "name": "customer-support-phase1-order", "source": "./customer-support-phase1-order", "description": "Phase-1 3-artifact order + citation gate (issue-10)." }
 ```
 
-## 2. Methodology gate (mechanical enforcement)
+## 1. Phase-1 norm = plugin #6 alone
 
-New file, phase 2: `customer-support/hooks/methodology-gate.sh`.
-Role-local (not core canon — this role's SLA/escalation/playbook shape
-is customer-support-specific business logic, the same category as
-`pricing/hooks/methodology-gate.sh`, which lives in `pricing/hooks/`,
-not `core/hooks/`; per `docs/handbooks/canon-scripts.md` nothing here
-is a vendored copy of a core file). Structurally mirrors
-`pricing/hooks/methodology-gate.sh` (same fail-closed trap, same
-kill-switch pattern, same PreToolUse Write/Edit/MultiEdit
-new-content-reconstruction approach) — referenced as a design pattern,
-not copied byte-for-byte (its checked elements are entirely
-customer-support-specific).
+`docs/issue-1/proposals/customer-support.md` §1's norm (produce exactly
+3 artifacts in order — survey → scout-brief → proposal; no §2
+structural claim without a scout-brief citation) is owned entirely by
+`customer-support-phase1-order`. It is deliberately **not** split
+further: the two halves (artifact order, citation requirement) are the
+same write surface (`docs/issue-<n>/proposals/customer-support.md`) and
+the same failure mode (a proposal asserting structure with no upstream
+check), so splitting them into two plugins would be file-churn with no
+independent-methodology justification — the "독립 플러그인" bar is one
+methodology per plugin, not one check per plugin.
 
-**Target write surfaces** (regex, scoped — nothing outside these paths
-is this gate's business):
-- `customer-support/handbook.md` (or whatever path phase 2 chooses for
-  the combined deliverable — regex: `^customer-support/handbook\.md$`
-  plus `^docs/issue-[0-9]+/(_assets|reports)/customer-support/.*\.md$`
-  if phase 2 splits the deliverable into per-issue files; exact path
-  decided by phase 2, same open question `docs/issue-1/proposals/
-  customer-support.md` already flagged and left open — not re-decided
-  here)
+**Gate** (`hooks/gate.sh`, PreToolUse on
+`^docs/issue-[0-9]+/proposals/customer-support\.md$`):
+- Order check: refuses the write unless
+  `docs/issue-<n>/reports/customer-support/survey.md` and
+  `.../scout-brief.md` already exist on disk under the same `issue-<n>`
+  path (`missing.append("artifact-order:survey")` /
+  `"artifact-order:scout-brief"`).
+- Citation check: for each §2-shaped structural keyword found in the
+  new content (sla, escalation, playbook, evidence metric, 5-whys —
+  same keyword list as the phase-2 plugins below), require at least one
+  line in the same section citing `scout-brief.md` or a source URL
+  (`missing.append("uncited-claim:<facet>")`).
+- Kill switch: `CUSTOMER_SUPPORT_PHASE1_ORDER_GATE_OFF=1`.
+- Fails closed on unparseable payload (`exit 2`), matching precedent.
+
+**Directive fragment** (`hooks/directive-fragment.sh`, SessionStart,
+heredoc-appended alongside the existing `directive.sh` output — same
+stacking mechanism plugin #6 itself models): states the 3-step order and
+the "no uncited structural claim" prohibition as an executable
+judgment, one level above what the gate can check syntactically (e.g.
+a citation line pointing at a scout-brief section that doesn't actually
+back the claim passes the gate's regex but fails the directive's
+judgment — the gate states the floor, the directive states the
+judgment, same split as the prior draft's §1/§2 relationship, now scoped
+to one plugin instead of bolted onto the role plugin).
+
+## 2. Phase-2 norm = composition of plugins #1–#5
+
+`docs/issue-1/proposals/customer-support.md` §2's five required
+elements (SLA table, escalation path, playbook scenario, evidence
+metric, 5-whys) are **not** one gate with five checks (the prior
+draft's `methodology-gate.sh`). Each is its own plugin, each with its
+own gate scoped to its own facet, all five targeting the same write
+surfaces:
+- `^customer-support/handbook\.md$` (current deliverable path; also
+  `^docs/issue-[0-9]+/(_assets|reports)/customer-support/.*\.md$` if
+  phase 2 splits the deliverable — same open question carried from the
+  prior draft, unresolved here, see §5)
 - `^docs/issue-[0-9]+/reports/customer-support\.md$` (the record)
 
-**Kill switch**: `CUSTOMER_SUPPORT_METHODOLOGY_GATE_OFF=1`.
+The **phase-2 norm is the union of these five independent PreToolUse
+gates** all firing on the same Write/Edit/MultiEdit event — a write
+that satisfies plugin #1's SLA columns but omits plugin #3's playbook
+escalation condition is refused by #3, independent of #1's pass. No
+plugin needs to know the other four exist; the norm emerges from all
+five being registered, exactly as the plugin list's composition column
+states. This is the concrete answer to "어떤 플러그인들이 조합되어 그
+규범이 성립하는지": the phase-2 norm *is* {#1 ∧ #2 ∧ #3 ∧ #4 ∧ #5}, not
+a sixth thing that references them.
 
-**Required elements checked** (substring/regex on resolved new
-content, `has_any`-style like `pricing/hooks/methodology-gate.sh`):
+### 2.1 `customer-support-sla-tier` (#1)
+**Gate**: a markdown table header containing all 6 required column
+labels (case-insensitive: "priority", one of "impact", one of
+"urgency", "first response", "resolution", "escalation trigger").
+Missing → `missing.append("sla-table-column:<name>")`.
+**Directive fragment**: every row must derive from an Impact×Urgency
+pair, not assert a tier label with no pair behind it (same judgment as
+the prior draft's §1 SLA facet).
+Kill switch: `CUSTOMER_SUPPORT_SLA_TIER_GATE_OFF=1`.
 
-1. **SLA-table structural check**: a markdown table header containing
-   all 6 required column labels (case-insensitive: "priority", one of
-   "impact", one of "urgency", "first response", "resolution",
-   "escalation trigger"). Missing any -> `missing.append("sla-table-column:<name>")`.
-2. **Escalation-path field check**: for text under an "escalation
-   path" heading, each tier row/block must contain "trigger" (or
-   equivalent condition language), a named owner (non-generic — "the
-   team" alone does not satisfy; require presence of a role/title-
-   shaped token, checked as: a capitalized noun phrase adjacent to
-   "owner:" or a table column so labeled), and "timeout" (or
-   equivalent). Missing -> `missing.append("escalation-field:<name>")`.
-3. **Playbook-scenario element check**: for each detected scenario
-   block (heading matching `Scenario` or a bullet list under
-   "playbook"), require presence of "trigger"/"scenario", "decision
-   criteria", "script" or "response template" or "response", and
-   "escalation condition". Missing any in a detected scenario block ->
-   `missing.append("playbook-element:<name>")`.
-4. **Evidence-metric check**: at least one of "csat", "fcr", "first
-   contact resolution", "sla-adherence", "sla adherence" present.
-   Missing -> `missing.append("evidence-metric")`.
-5. **5-whys check**: fires only when the new content contains
-   "repeat" or "recurring" language in a scenario/entry context; when
-   it does, require "5-whys" (or "five whys") plus 5 distinct
-   numbered/bulleted question-shaped lines nearby (heuristic: at least
-   5 lines ending in `?` within the same section). Missing ->
-   `missing.append("5-whys-check")`. This mirrors §2's "Recurring-issue
-   hand-off" norm being conditional (only fires when a repeat pattern
-   is actually described), same conditional-check shape
-   `pricing/hooks/methodology-gate.sh` uses for its "labeled-numbers"
-   check (only fires when digits are present).
+### 2.2 `customer-support-escalation-path` (#2)
+**Gate**: for text under an "escalation path" heading, each tier
+row/block must contain "trigger" (or equivalent), a named owner
+(non-generic — "the team" alone fails; requires a role/title-shaped
+token adjacent to "owner:" or a so-labeled table column), and "timeout"
+(or equivalent). Missing → `missing.append("escalation-field:<name>")`.
+**Directive fragment**: PROHIBITED — a bare "escalate to manager if
+unresolved" line with no named owner/timeout.
+Kill switch: `CUSTOMER_SUPPORT_ESCALATION_PATH_GATE_OFF=1`.
 
-Deny message: `"customer-support: refused — methodology write is
-missing required element(s): <list>. Per docs/issue-1/proposals/
-customer-support.md §2, every phase-2 deliverable/record write must
-carry: <full requirement text>."` — same specificity-per-element shape
-as both precedent gates (scout-brief performance axis #1).
+### 2.3 `customer-support-playbook-scenario` (#3)
+**Gate**: for each detected scenario block (heading matching
+`Scenario` or a bullet list under "playbook"), require "trigger"/
+"scenario", "decision criteria", "script"/"response template"/
+"response", and "escalation condition". Missing any →
+`missing.append("playbook-element:<name>")`.
+**Directive fragment**: PROHIBITED — a script with no escalation
+condition, or an escalation condition naming no tier defined by plugin
+#2's output.
+Kill switch: `CUSTOMER_SUPPORT_PLAYBOOK_SCENARIO_GATE_OFF=1`.
 
-Internal-error/unparseable-payload paths fail closed (`exit 2`),
-matching both precedent gates exactly.
+### 2.4 `customer-support-evidence-metric` (#4)
+**Gate**: at least one of "csat", "fcr", "first contact resolution",
+"sla-adherence", "sla adherence" present. Missing →
+`missing.append("evidence-metric")`.
+**Directive fragment**: PROHIBITED — citing a metric by name with no
+sentence connecting it to what the deliverable does to move it.
+Kill switch: `CUSTOMER_SUPPORT_EVIDENCE_METRIC_GATE_OFF=1`.
 
-## 3. Ordering (state tracking) — not added, reasoned
+### 2.5 `customer-support-five-whys` (#5)
+**Gate**: fires only when new content contains "repeat"/"recurring"
+language in a scenario/entry context; when it does, requires "5-whys"
+(or "five whys") plus 5 distinct question-shaped lines (heuristic: ≥5
+lines ending in `?`) in the same section. Missing →
+`missing.append("5-whys-check")`.
+**Directive fragment**: PROHIBITED — writing "hand off to
+product-discovery" for a flagged-repeat entry with no 5-whys answers
+preceding it in the same entry.
+**Checklist** (`checklists/5-whys-recurring.md`): verbatim-copies the 5
+questions already adopted in `docs/issue-1/proposals/
+customer-support.md` §2 / `handbook.md` §5 — content promoted from
+embedded prose to a referenceable artifact, not a new claim. Referenced
+by path from this plugin's directive fragment. No `agents/` addition:
+the procedure is content-authoring, not an autonomous subagent task
+(unlike, e.g., `warrant`'s hunt dispatch, which has no analog in this
+role's deliverable shape).
+Kill switch: `CUSTOMER_SUPPORT_FIVE_WHYS_GATE_OFF=1`.
 
-Per scout-brief's skip pattern: the phase-1 3-artifact order
-(survey -> scout-brief -> proposal) is a same-PR, same-session
-sequence with no cross-session gap, and the phase-1/phase-2 boundary
-itself is already mechanically enforced by core's `approval-gate.sh`/
-`board-gate.sh` (unchanged, out of scope here). A `warrant`-style
-SessionStart state-rebuild script exists to solve a problem
-(`approved`-but-interrupted work spanning session restarts) this
-role's 3-artifact order does not have. Adding one would be
-disproportionate machinery for a within-one-PR document sequence.
-**No state-tracking script is proposed.** If a future issue finds
-proposals actually being written before surveys exist in practice, a
-lightweight PreToolUse check (proposal write blocked unless
-survey.md/scout-brief.md already exist on disk under the same
-`docs/issue-<n>/` path) can be added to `methodology-gate.sh` itself
-as one more `has_any`-style branch — flagged as a future extension
-point, not built now absent evidence of the failure it would prevent.
+Each gate's deny message keeps the prior draft's specificity-per-element
+shape: `"<plugin-name>: refused — <facet> write is missing required
+element(s): <list>. Per docs/issue-1/proposals/customer-support.md §2,
+every phase-2 deliverable/record write must carry: <full requirement
+text>."` Each fails closed on unparseable payload (`exit 2`).
 
-## 4. Gate tests
+## 3. Ordering beyond phase-1 (#6) — not added elsewhere, reasoned
 
-Per the issue's explicit instruction ("레포 루트 tests"), new file:
-`tests/methodology-gate-tests.sh` (repo root, not
-`customer-support/hooks/tests/` — no such directory exists today and
-the issue names the root location). Runs the gate as a real
-subprocess, same invocation model as core's
-`run-role-gates-tests.sh`: feeds a synthetic PreToolUse JSON payload
-(`tool_name`, `tool_input.file_path`, `tool_input.content`) on stdin
-with `CLAUDE_ROLE=customer-support` and `CLAUDE_PROJECT_DIR` set to a
-temp git-initialized dir.
+Per scout-brief's skip pattern: no plugin above adds a `warrant`-style
+cross-session state-rebuild script. Plugin #6 covers the only
+genuinely new ordering question (survey → scout-brief → proposal,
+same-PR, same-session); the phase-1/phase-2 boundary is already
+mechanically enforced by core's `approval-gate.sh`/`board-gate.sh`
+(unchanged, out of scope). Adding a state-tracker to any of #1–#5 would
+be disproportionate — none of the five phase-2 elements has a
+cross-session ordering requirement (a handbook write either has all of
+a facet's elements or it doesn't; there is no "must come after"
+relationship among SLA table / escalation path / playbook / metric /
+5-whys). Flagged as a future extension point on plugin #6 specifically
+if a future issue finds proposals written before surveys exist in
+practice — not built now absent evidence of that failure.
 
-**Pass cases:**
-- Full `handbook.md`-shaped content (all 6 SLA columns, all 3
-  escalation fields per tier, all 4 playbook elements per scenario, an
-  evidence metric, a repeat-pattern scenario with 5-whys present) ->
-  exit 0.
-- A record write with no repeat-pattern language and no SLA/escalation
-  content at all (not a methodology-shaped write) -> exit 0 (gate is
-  scoped to detected structural content, not every record write).
-- `CUSTOMER_SUPPORT_METHODOLOGY_GATE_OFF=1` set -> exit 0 regardless of
-  content (kill-switch check).
+## 4. Gate tests — one root-level file per plugin
 
-**Deny cases** (one per required element, each isolated by starting
-from the full pass-case fixture and removing exactly one element):
-- SLA table missing the "escalation trigger" column -> exit 2,
-  message contains `sla-table-column`.
-- Escalation tier with no named owner (only "the team") -> exit 2,
-  message contains `escalation-field`.
-- Playbook scenario with no escalation condition -> exit 2, message
-  contains `playbook-element`.
-- Full handbook content with the evidence-metric section deleted ->
-  exit 2, message contains `evidence-metric`.
-- A "recurring"-flagged scenario with no 5-whys questions -> exit 2,
-  message contains `5-whys-check`.
-- Malformed JSON on stdin -> exit 2 (fail-closed on unparseable
-  payload).
-- A Bash tool_name (not Write/Edit/MultiEdit) targeting `handbook.md`
-  -> exit 0 (out of this gate's scope, same as both precedent gates).
+Per the issue's explicit instruction ("레포 루트 tests"), six new files,
+each independently runnable (`bash tests/<plugin>-gate-tests.sh`), same
+invocation model as core's `run-role-gates-tests.sh` (synthetic
+PreToolUse JSON on stdin, `CLAUDE_ROLE=customer-support`,
+`CLAUDE_PROJECT_DIR` set to a temp git-initialized dir):
 
-Wired into a root `tests/run-all.sh` if/when more root-level test
-files exist; for now `tests/methodology-gate-tests.sh` is
-directly runnable (`bash tests/methodology-gate-tests.sh`), matching
-`role-gates-tests.md`'s "no setup required" precedent.
+- `tests/customer-support-sla-tier-gate-tests.sh`
+- `tests/customer-support-escalation-path-gate-tests.sh`
+- `tests/customer-support-playbook-scenario-gate-tests.sh`
+- `tests/customer-support-evidence-metric-gate-tests.sh`
+- `tests/customer-support-five-whys-gate-tests.sh`
+- `tests/customer-support-phase1-order-gate-tests.sh`
 
-## 5. Checklist for the 5-whys repeated procedure
-
-The 5-whys check is a repeated, per-entry procedure (facet 5 above),
-not a one-time judgment — warrants a standalone checklist per the
-issue's "필요 시" clause, so an agent (or human) filling out a new
-recurring-pattern playbook entry has the exact 5 questions to hand
-without re-deriving them from `handbook.md` §5's prose each time. New
-file, phase 2: `customer-support/checklists/5-whys-recurring.md`,
-verbatim-copying the 5 questions already adopted in `docs/issue-1/
-proposals/customer-support.md` §2 / `handbook.md` §5 (same content,
-promoted from embedded prose to a referenceable checklist — not a new
-methodology claim). `methodology-directive.sh` (§1 above) references
-this file by path in its 5-whys facet line. No `agents/` addition is
-proposed: the procedure is a content-authoring checklist, not a task
-an autonomous subagent runs independently (unlike, e.g., `warrant`'s
-hunt dispatch, which has no analog in this role's deliverable shape).
+Each file carries its own plugin's pass/deny cases (one deny case per
+required element, isolated by removing exactly one element from a full
+pass-case fixture), plus the shared cases every gate needs: kill-switch
+off regardless of content, malformed-JSON fail-closed, and a
+non-Write/Edit/MultiEdit `tool_name` passing through untouched (out of
+gate scope). No shared test harness file is introduced — six
+self-contained test files, not one parameterized runner, matching the
+plugin-per-methodology principle at the test layer too. Wired into a
+root `tests/run-all.sh` if/when more root-level test files exist.
 
 ## Phase-2 write set
 
-- `customer-support/hooks/methodology-directive.sh` — new (§1)
-- `customer-support/hooks/hooks.json` — edit, register the new
-  SessionStart hook (§1)
-- `customer-support/hooks/methodology-gate.sh` — new (§2)
-- `customer-support/hooks/hooks.json` — edit, register the new
-  PreToolUse gate alongside the existing `record-fields-gate.sh` entry
-  (§2)
-- `tests/methodology-gate-tests.sh` — new (§4)
-- `customer-support/checklists/5-whys-recurring.md` — new (§5)
+- `customer-support-sla-tier/.claude-plugin/plugin.json` — new
+- `customer-support-sla-tier/hooks/{directive-fragment.sh,gate.sh,hooks.json}` — new
+- `customer-support-escalation-path/.claude-plugin/plugin.json` — new
+- `customer-support-escalation-path/hooks/{directive-fragment.sh,gate.sh,hooks.json}` — new
+- `customer-support-playbook-scenario/.claude-plugin/plugin.json` — new
+- `customer-support-playbook-scenario/hooks/{directive-fragment.sh,gate.sh,hooks.json}` — new
+- `customer-support-evidence-metric/.claude-plugin/plugin.json` — new
+- `customer-support-evidence-metric/hooks/{directive-fragment.sh,gate.sh,hooks.json}` — new
+- `customer-support-five-whys/.claude-plugin/plugin.json` — new
+- `customer-support-five-whys/hooks/{directive-fragment.sh,gate.sh,hooks.json}` — new
+- `customer-support-five-whys/checklists/5-whys-recurring.md` — new
+- `customer-support-phase1-order/.claude-plugin/plugin.json` — new
+- `customer-support-phase1-order/hooks/{directive-fragment.sh,gate.sh,hooks.json}` — new
+- `.claude-plugin/marketplace.json` — edit, register the six new plugin
+  entries (§0)
+- `tests/customer-support-{sla-tier,escalation-path,playbook-scenario,evidence-metric,five-whys,phase1-order}-gate-tests.sh` — new, six files
 - `docs/issue-10/reports/customer-support.md` — new, phase-2 record
 
-No change to `customer-support/hooks/directive.sh` (4-field call
-shape unchanged, per §1) and no change to core (`record-fields-gate.sh`
-stays canon-referenced, unmodified, per the issue's canon-reference-
-only constraint).
+No change to `customer-support/hooks/directive.sh` or
+`customer-support/hooks/hooks.json` (existing role plugin's identity/
+hand-off content is unaffected — the six methodology plugins stack on
+top, per §0's composition column) and no change to core
+(`record-fields-gate.sh` stays canon-referenced, unmodified).
 
 ## Open questions for approver
 
-1. **Deliverable file path**, carried over unresolved from
-   `docs/issue-1/proposals/customer-support.md`'s open question 1:
-   this proposal's gate regex (§2) covers both the current single-file
-   `handbook.md` and a possible future per-issue split
-   (`docs/issue-<n>/reports/customer-support/*.md`). If phase 2
-   changes the deliverable location, the gate's target-path regex is
-   the only thing that needs updating — flagged so the approver can
-   confirm the regex shape covers the intended path before phase 2
-   builds against it.
-2. **5-whys detection heuristic** (§2 point 5): "5 lines ending in `?`
-   within the same section" is a heuristic, not a semantic check — a
-   determined writer could satisfy it with 5 unrelated questions. This
-   is the same class of trade-off `pricing/hooks/methodology-gate.sh`
-   accepts for its own substring checks (a gate checks presence of
-   required *shape*, not correctness of *content* — content
-   correctness is a review-time judgment, not a PreToolUse-gate-time
-   one). Flagged for approver awareness, not proposed as a blocker.
+1. **Deliverable file path** (carried over unresolved from
+   `docs/issue-1/proposals/customer-support.md`): all five phase-2
+   plugins' gate regexes cover both the current single-file
+   `handbook.md` and a possible future per-issue split. If phase 2
+   changes the deliverable location, each of the five plugins' target-
+   path regex needs the same update in parallel — flagged so the
+   approver can confirm the regex shape before phase 2 builds five
+   gates against it instead of one.
+2. **5-whys detection heuristic**: "5 lines ending in `?` within the
+   same section" is a shape check, not a semantic one — same
+   presence-not-correctness trade-off `pricing/hooks/methodology-gate.sh`
+   accepts. Flagged for awareness, not proposed as a blocker.
+3. **Six-plugin overhead**: six `plugin.json`/`hooks.json` pairs (vs.
+   the prior draft's one file) is more registration surface for the
+   same enforcement content. Flagged in case the approver wants a
+   coarser split (e.g. one plugin per phase instead of per facet) —
+   this revision defaults to per-facet because the issue's "요구 정정"
+   states the granularity explicitly ("방법론 1개 = 독립 플러그인 1개"),
+   and each of the five §2 facets is independently adopted by
+   `docs/issue-1/proposals/customer-support.md` §3 (each has its own
+   scout-brief citation), so each is a distinct "방법론" by that
+   document's own evidentiary boundary.
 
 This PR is phase-1 (proposal) only. Phase 2 opens only after an
 approvers.md account's PR-review Approve, or the exact-string
