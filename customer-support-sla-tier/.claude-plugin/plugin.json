@@ -1,0 +1,5 @@
+{
+  "name": "customer-support-sla-tier",
+  "description": "SLA-tier table gate (issue-10).",
+  "author": { "name": "Jung Jiwon & Lee Jongkwan" }
+}

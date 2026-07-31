@@ -1,0 +1,13 @@
+{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/directive-fragment.sh" } ] }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [ { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/gate.sh" } ]
+      }
+    ]
+  }
+}

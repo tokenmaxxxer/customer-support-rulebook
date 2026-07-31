@@ -1,0 +1,5 @@
+{
+  "name": "customer-support-playbook-scenario",
+  "description": "Playbook-scenario element gate (issue-10).",
+  "author": { "name": "Jung Jiwon & Lee Jongkwan" }
+}
