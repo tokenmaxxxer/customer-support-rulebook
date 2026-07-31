@@ -6,6 +6,17 @@
           { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/directive.sh" }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT_CORE:-$(cd \"${CLAUDE_PLUGIN_ROOT}/../core\" && pwd -P)}/hooks/record-fields-gate.sh\""
+          }
+        ]
+      }
     ]
   }
 }
