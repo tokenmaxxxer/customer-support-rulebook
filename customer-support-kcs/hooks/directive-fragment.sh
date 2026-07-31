@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+cat <<'EOF'
+KCS (Knowledge-Centered Service, Consortium for Service Innovation) is the canonical methodology for a support role whose stated PRODUCES is knowledge content (playbook/handbook), not only ticket handling. This gate's article shape does NOT replace the playbook-scenario shape (trigger/decision-criteria/script/escalation-condition) — it's the article-CONTENT standard that scenario entries must additionally satisfy once written; both gates target overlapping write surfaces without one subsuming the other. PROHIBITED — a resolution with no environment scope (a fix stated as universally applicable when it is actually conditional), or a cause field left blank on an entry that also carries a 5-whys block (the 5-whys output must populate this Cause field, not sit orphaned in prose elsewhere). Cite docs/issue-10/proposals/customer-support.md §2.6 (this revision's KCS adoption) and docs/issue-1/proposals/customer-support.md §2.
+EOF

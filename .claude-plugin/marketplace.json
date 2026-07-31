@@ -8,6 +8,13 @@
       "name": "customer-support",
       "source": "./customer-support",
       "description": "The customer-support role on contract v3 (issue-160 round-3 promotion). Decides: 문의를 어떤 우선순위/SLA로 처리할지."
-    }
+    },
+    { "name": "customer-support-sla-tier", "source": "./customer-support-sla-tier", "description": "SLA-tier table gate (issue-10)." },
+    { "name": "customer-support-escalation-path", "source": "./customer-support-escalation-path", "description": "Escalation-path field gate (issue-10)." },
+    { "name": "customer-support-playbook-scenario", "source": "./customer-support-playbook-scenario", "description": "Playbook-scenario element gate (issue-10)." },
+    { "name": "customer-support-evidence-metric", "source": "./customer-support-evidence-metric", "description": "Evidence-metric citation gate (issue-10)." },
+    { "name": "customer-support-five-whys", "source": "./customer-support-five-whys", "description": "5-whys recurring-pattern gate + checklist (issue-10)." },
+    { "name": "customer-support-phase1-order", "source": "./customer-support-phase1-order", "description": "Phase-1 3-artifact order + citation gate (issue-10)." },
+    { "name": "customer-support-kcs", "source": "./customer-support-kcs", "description": "KCS Content Standard article-shape gate (issue-10)." }
   ]
 }

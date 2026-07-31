@@ -1,0 +1,5 @@
+{
+  "name": "customer-support-escalation-path",
+  "description": "Escalation-path field gate (issue-10).",
+  "author": { "name": "Jung Jiwon & Lee Jongkwan" }
+}
