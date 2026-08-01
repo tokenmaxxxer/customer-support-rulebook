@@ -1,151 +1,95 @@
 #!/usr/bin/env bash
-# Standalone tests for customer-support-five-whys/hooks/gate.sh
-# Run: bash tests/customer-support-five-whys-gate-tests.sh
-
 set -u
-
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-GATE="$REPO_ROOT/customer-support-five-whys/hooks/gate.sh"
+. "$REPO_ROOT/tests/lib/harness.sh"
+harness_init
+GATE="$REPO_ROOT/customer-support-five-whys/hooks/five-whys-gate.sh"
 
-export CLAUDE_ROLE=customer-support
+FULL_PASS="Recurring pattern: same refund complaint.
+5-whys:
+Why did the refund fail?
+Why was the policy misapplied?
+Why was the agent untrained on this case?
+Why did onboarding skip this scenario?
+Why does the playbook lack this entry?
+Hand off to product-discovery."
+run_case "full-pass" pass "$(make_payload Write customer-support/handbook.md "$FULL_PASS")"
 
-TMP_PROJECT_DIR="$(mktemp -d)"
-trap 'rm -rf "$TMP_PROJECT_DIR"' EXIT
-git -C "$TMP_PROJECT_DIR" init -q
-export CLAUDE_PROJECT_DIR="$TMP_PROJECT_DIR"
+NO_LABEL="Recurring pattern: same refund complaint.
+Why did the refund fail?
+Why was the policy misapplied?
+Why was the agent untrained on this case?
+Why did onboarding skip this scenario?
+Why does the playbook lack this entry?
+Hand off to product-discovery."
+run_case "deny-missing-5-whys-label" deny "$(make_payload Write customer-support/handbook.md "$NO_LABEL")"
 
-pass_count=0
-fail_count=0
+FEW_QUESTIONS="Recurring pattern: same refund complaint.
+5-whys:
+Why did the refund fail?
+Why was the policy misapplied?
+Hand off to product-discovery."
+run_case "deny-fewer-than-5-questions" deny "$(make_payload Write customer-support/handbook.md "$FEW_QUESTIONS")"
 
-run_case() {
-  local name="$1"
-  local expect_deny="$2"
-  local payload_json="$3"
+run_case "no-marker-pass" pass "$(make_payload Write customer-support/handbook.md "This is a one-off issue with no pattern of any kind.")"
 
-  local output
-  output=$(echo "$payload_json" | bash "$GATE" 2>/dev/null)
-  local exit_code=$?
-
-  local denied=0
-  if echo "$output" | grep -q '"permissionDecision"[[:space:]]*:[[:space:]]*"deny"'; then
-    denied=1
-  fi
-
-  if [ "$expect_deny" = "2" ]; then
-    if [ "$exit_code" -eq 2 ]; then
-      echo "PASS: $name"
-      pass_count=$((pass_count + 1))
-    else
-      echo "FAIL: $name (expected exit 2, got exit $exit_code)"
-      fail_count=$((fail_count + 1))
-    fi
-    return
-  fi
-
-  if [ "$denied" = "$expect_deny" ]; then
-    echo "PASS: $name"
-    pass_count=$((pass_count + 1))
-  else
-    echo "FAIL: $name (expected deny=$expect_deny, got deny=$denied, exit=$exit_code, output=$output)"
-    fail_count=$((fail_count + 1))
-  fi
-}
-
-# Fixture note: multi-cause 5-whys blocks (branching into unrelated causes)
-# must route to product-discovery per §2.5 — this is a directive-level
-# judgment call this gate script does not and cannot check (shape/presence
-# only).
-FULL_PASS_CONTENT='## Scenario D: recurring login timeout
-
-This is a repeat inbound pattern.
-
-5-whys check:
-1. Why are customers hitting this?
-2. Why does documentation not prevent it?
-3. Why has this not been fixed already?
-4. Why is a workaround not sufficient?
-5. Why would this require a product change?
-
-Decision: keep as support-side scenario.'
-
-FULL_PASS_PAYLOAD=$(jq -n --arg fp "customer-support/handbook.md" --arg c "$FULL_PASS_CONTENT" \
-  '{tool_name:"Write", tool_input:{file_path:$fp, content:$c}}')
-run_case "full-pass: recurring + 5-whys label + 5 questions" 0 "$FULL_PASS_PAYLOAD"
-
-MISSING_LABEL_CONTENT='## Scenario D: recurring login timeout
-
-This is a repeat inbound pattern.
-
-1. Why are customers hitting this?
-2. Why does documentation not prevent it?
-3. Why has this not been fixed already?
-4. Why is a workaround not sufficient?
-5. Why would this require a product change?
-
-Decision: keep as support-side scenario.'
-
-MISSING_LABEL_PAYLOAD=$(jq -n --arg fp "customer-support/handbook.md" --arg c "$MISSING_LABEL_CONTENT" \
-  '{tool_name:"Write", tool_input:{file_path:$fp, content:$c}}')
-run_case "deny: recurring present, no 5-whys label text" 1 "$MISSING_LABEL_PAYLOAD"
-
-FEW_QUESTIONS_CONTENT='## Scenario D: recurring login timeout
-
-This is a repeat inbound pattern. 5-whys check:
-
-1. Why are customers hitting this?
-2. Why does documentation not prevent it?
-
-Decision: keep as support-side scenario.'
-
-FEW_QUESTIONS_PAYLOAD=$(jq -n --arg fp "customer-support/handbook.md" --arg c "$FEW_QUESTIONS_CONTENT" \
-  '{tool_name:"Write", tool_input:{file_path:$fp, content:$c}}')
-run_case "deny: recurring + 5-whys text but fewer than 5 questions" 1 "$FEW_QUESTIONS_PAYLOAD"
-
-NO_RECURRING_CONTENT='## Scenario A: password reset
-
-Standard one-off ticket. Handle per macro and close.'
-
-NO_RECURRING_PAYLOAD=$(jq -n --arg fp "customer-support/handbook.md" --arg c "$NO_RECURRING_CONTENT" \
-  '{tool_name:"Write", tool_input:{file_path:$fp, content:$c}}')
-run_case "pass: no repeat/recurring language, gate does not fire" 0 "$NO_RECURRING_PAYLOAD"
-
-KILL_SWITCH_PAYLOAD=$(jq -n --arg fp "customer-support/handbook.md" --arg c "$MISSING_LABEL_CONTENT" \
-  '{tool_name:"Write", tool_input:{file_path:$fp, content:$c}}')
-CUSTOMER_SUPPORT_FIVE_WHYS_GATE_OFF=1 bash -c '
-  output=$(echo "'"$KILL_SWITCH_PAYLOAD"'" | bash "'"$GATE"'")
-  exit_code=$?
-  if [ "$exit_code" -eq 0 ] && [ -z "$output" ]; then
-    echo "PASS: kill-switch bypass"
-    exit 0
-  else
-    echo "FAIL: kill-switch bypass (exit=$exit_code output=$output)"
-    exit 1
-  fi
-'
-if [ $? -eq 0 ]; then
-  pass_count=$((pass_count + 1))
+kill_out="$(printf '%s' "$(make_payload Write customer-support/handbook.md "$NO_LABEL")" | CUSTOMER_SUPPORT_FIVE_WHYS_GATE_OFF=1 bash "$GATE" 2>/dev/null)"
+kill_code=$?
+if [ "$kill_code" -eq 0 ] && [ -z "$kill_out" ]; then
+  echo "PASS: kill-switch-on"; pass_count=$((pass_count+1))
 else
-  fail_count=$((fail_count + 1))
+  echo "FAIL: kill-switch-on (exit=$kill_code out=$kill_out)"; fail_count=$((fail_count+1))
 fi
 
-MALFORMED_JSON='not json at all'
-output=$(echo "$MALFORMED_JSON" | bash "$GATE" 2>/dev/null)
-exit_code=$?
-if [ "$exit_code" -eq 2 ]; then
-  echo "PASS: malformed JSON exits 2"
-  pass_count=$((pass_count + 1))
+printf '%s' "$(make_payload Write customer-support/handbook.md "$NO_LABEL")" | CUSTOMER_SUPPORT_FIVE_WHYS_GATE_OFF=maybe bash "$GATE" >/dev/null 2>&1
+unrec_code=$?
+if [ "$unrec_code" -eq 2 ]; then
+  echo "PASS: kill-switch-unrecognized-value-stays-active"; pass_count=$((pass_count+1))
 else
-  echo "FAIL: malformed JSON (expected exit 2, got $exit_code)"
-  fail_count=$((fail_count + 1))
+  echo "FAIL: kill-switch-unrecognized-value-stays-active (exit=$unrec_code)"; fail_count=$((fail_count+1))
 fi
 
-NON_WRITE_PAYLOAD=$(jq -n --arg fp "customer-support/handbook.md" --arg c "$MISSING_LABEL_CONTENT" \
-  '{tool_name:"Read", tool_input:{file_path:$fp, content:$c}}')
-run_case "pass: non-Write/Edit/MultiEdit tool passthrough" 0 "$NON_WRITE_PAYLOAD"
+for bad in "not json" "" "[1,2,3]"; do
+  printf '%s' "$bad" | bash "$GATE" >/dev/null 2>&1
+  code=$?
+  if [ "$code" -eq 2 ]; then
+    echo "PASS: malformed-json(${bad:-empty})"; pass_count=$((pass_count+1))
+  else
+    echo "FAIL: malformed-json(${bad:-empty}) (exit=$code)"; fail_count=$((fail_count+1))
+  fi
+done
 
-echo ""
-echo "Summary: $pass_count passed, $fail_count failed"
-if [ "$fail_count" -gt 0 ]; then
-  exit 1
-fi
-exit 0
+run_case "non-write-edit-multiedit-passthrough" pass "$(make_payload Read customer-support/handbook.md "")"
+
+seed_file "customer-support/handbook.md" "OLDMARK pattern: same refund complaint.
+OLDMARK
+Why did the refund fail?
+Why was the policy misapplied?
+Why was the agent untrained on this case?
+Why did onboarding skip this scenario?
+Why does the playbook lack this entry?"
+edit_payload="$(make_edit_payload customer-support/handbook.md "OLDMARK" "Recurring" true)"
+run_case "edit-replace-all-true-multi-occurrence" deny "$edit_payload"
+
+seed_file "customer-support/handbook.md" "FIRSTMARK pattern: same refund complaint.
+SECONDMARK
+Why did the refund fail?
+Why was the policy misapplied?
+Why was the agent untrained on this case?
+Why did onboarding skip this scenario?
+Why does the playbook lack this entry?"
+multi_payload="$(make_multiedit_payload customer-support/handbook.md \
+  "FIRSTMARK" "Recurring" true \
+  "SECONDMARK" "5-whys:" false)"
+run_case "multiedit-mixed-replace-all" pass "$multi_payload"
+
+abs_path="$CLAUDE_PROJECT_DIR/customer-support/handbook.md"
+run_case "absolute-path" deny "$(make_payload Write "$abs_path" "$NO_LABEL")"
+run_case "dot-prefixed-path" deny "$(make_payload Write "./customer-support/handbook.md" "$NO_LABEL")"
+
+bash_payload="$(make_bash_payload "cat > customer-support/handbook.md <<'EOF'
+$NO_LABEL
+EOF")"
+run_case "bash-write-same-target" deny "$bash_payload"
+
+harness_summary

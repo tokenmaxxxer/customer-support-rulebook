@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+# customer-support-sla-tier gate: requires an SLA table with all required
+# columns present in the table's own header row (not merely anywhere in
+# the document) before allowing writes to the target surface. Sources
+# core's gate-lib.sh (issue-72 gate-house standard), reference-adopt not
+# vendor (issue-13).
+
+. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../core" && pwd -P)}/hooks/lib/gate-lib.sh"
+gate_trap_fail_closed
+set -uo pipefail
+gate_kill_switch_active "${CUSTOMER_SUPPORT_SLA_TIER_GATE_OFF:-}" || { trap - EXIT; exit 0; }
+
+GATE_SEMANTIC_PY="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)/customer-support/hooks/lib/semantic.py"
+export GATE_SEMANTIC_PY
+GATE_PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+export GATE_PROJECT_DIR
+GATE_PAYLOAD="$(cat)"
+export GATE_PAYLOAD
+
+python3 <<'PYEOF'
+import os, sys, re, importlib.util
+
+
+def load(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+gate_lib = load("gate_lib", os.environ["GATE_LIB_PY"])
+semantic = load("semantic", os.environ["GATE_SEMANTIC_PY"])
+
+GATE_NAME = "customer-support-sla-tier"
+DOC_REF = "docs/issue-1/proposals/customer-support.md §2"
+
+
+def deny(msg):
+    print(f"{GATE_NAME}: refused — {msg}", file=sys.stderr)
+    sys.exit(2)
+
+
+raw = os.environ.get("GATE_PAYLOAD", "")
+project_dir = os.environ.get("GATE_PROJECT_DIR") or os.getcwd()
+event = gate_lib.gate_parse_json_or_deny(raw, deny)
+tool = event.get("tool_name")
+tool_input = event.get("tool_input") or {}
+
+if tool not in ("Write", "Edit", "MultiEdit", "Bash"):
+    sys.exit(0)
+
+PATH_RE = re.compile(r'^customer-support/handbook\.md$|^docs/issue-[0-9]+/reports/customer-support\.md$')
+
+
+def candidate_paths():
+    if tool == "Bash":
+        return re.findall(r'[\w./~-]+', tool_input.get("command", ""))
+    fp = tool_input.get("file_path")
+    return [fp] if isinstance(fp, str) else []
+
+
+matched = None
+for c in candidate_paths():
+    norm = gate_lib.gate_normalize_path(project_dir, c)
+    if norm is not None and PATH_RE.match(norm):
+        matched = c
+        break
+
+if matched is None:
+    sys.exit(0)
+
+if tool == "Bash":
+    deny(f"a Bash-tool command targets {matched}, a file this gate governs, and the "
+         "gate cannot reconstruct a Bash-written file's resulting content to check it; "
+         "refusing an unverifiable write rather than passing it through")
+
+abs_path = matched if os.path.isabs(matched) else os.path.join(project_dir, matched)
+current_content = ""
+if os.path.exists(abs_path):
+    with open(abs_path, "r", encoding="utf-8", errors="replace") as f:
+        current_content = f.read()
+
+content, ok = gate_lib.gate_reconstruct_write(tool, tool_input, current_content)
+if not ok:
+    deny(f"could not reconstruct the resulting write content for this {tool} call "
+         "(e.g. old_string not found in current content); failing closed rather than "
+         "checking a partial fragment")
+
+header = semantic.table_header_slice(content)
+
+missing = []
+
+
+def col(pattern, tag):
+    if not re.search(pattern, header, re.IGNORECASE):
+        missing.append(f"sla-table-column:{tag}")
+
+
+col(r'priority', 'priority')
+col(r'impact', 'impact')
+col(r'urgency', 'urgency')
+col(r'first response', 'first-response')
+col(r'resolution', 'resolution')
+col(r'escalation trigger', 'escalation-trigger')
+
+if missing:
+    deny("sla-table write is missing required element(s): " + ",".join(missing) +
+         f". Per {DOC_REF}, every phase-2 deliverable/record write must carry: an SLA "
+         "table with header-row columns Priority tier, Impact rating, Urgency rating, "
+         "First response time target, Resolution time target, Escalation trigger time, "
+         "each row derived from the ITIL Impact×Urgency priority matrix.")
+
+sys.exit(0)
+PYEOF
