@@ -12,7 +12,7 @@ deliverable or record write must cite at least one evidence metric (CSAT,
 FCR/First Contact Resolution, or SLA-adherence) AND explain, in a real
 sentence, how the deliverable's content is expected to move that metric.
 
-The mechanical gate (hooks/gate.sh) can only check for the presence of a
+The mechanical gate (hooks/evidence-metric-gate.sh) can only check for the presence of a
 metric name/synonym in the written text — it cannot verify that a causal
 sentence connects the deliverable to the metric. That verification is this
 directive's job: before finalizing a write to a target file, confirm the

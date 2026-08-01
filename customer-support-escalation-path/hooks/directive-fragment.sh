@@ -9,7 +9,7 @@ not a generic "the team"), and a timeout.
 
 A generic owner value like "the team" with no role/title is non-compliant
 even if the gate's presence check for the literal word "owner" passes. The
-gate (hooks/gate.sh) can only check that the word "owner" appears somewhere
+gate (hooks/escalation-path-gate.sh) can only check that the word "owner" appears somewhere
 in the content — it has no way to judge whether the owner value named is
 actually a role/title or just a vague placeholder like "the team" or
 "someone". That semantic genericness check is the judgment layer's job, not

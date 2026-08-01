@@ -25,7 +25,6 @@ claude plugin install customer-support
 - `customer-support/hooks/lib/semantic.py` — shared section/adjacency
   semantic-check helper used by the plugin gates below (issue-13; not
   part of core's `gate-lib.sh`/`.py`, this rulebook's own local design)
-- `customer-support/agents/warrant-hunter.md` — rotating-stance hunt agent
 - `docs/specs/approvers.md` — Approve-authority allowlist (see below)
 
 ### Methodology-enforcement gate plugins (issue-10, hardened issue-13)

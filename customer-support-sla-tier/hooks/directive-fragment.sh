@@ -13,7 +13,7 @@ just written down because it "feels" high priority.
 Norm source: docs/issue-1/proposals/customer-support.md §2/§3.
 
 Enforcement level: this is a judgment-level directive, not something the
-gate's regex checks can verify. The gate script (hooks/gate.sh) only checks
+gate's regex checks can verify. The gate script (hooks/sla-tier-gate.sh) only checks
 that an SLA table exists with the required column headers (Priority, Impact,
 Urgency, First response, Resolution, Escalation trigger). A table that has
 all the right column headers but whose Priority values are not actually

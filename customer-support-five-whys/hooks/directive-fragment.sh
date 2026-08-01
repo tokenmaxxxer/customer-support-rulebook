@@ -24,6 +24,14 @@ hand-off, not formal KEDB problem management — is exactly the case the
 technique fits. That is why 5-whys stays adopted here, but with this
 explicit scope bound rather than as ITIL's uncontested default.
 
+The mechanical gate (hooks/five-whys-gate.sh) can only check shape — the
+"5-whys" label plus a count of >=5 question-shaped lines. It cannot verify
+that the five questions match checklists/5-whys-recurring.md's specific
+causal-chain questions, nor that they satisfy this fragment's own §2.5
+convergence rule above. That verification is the judgment layer's job:
+apply the checklist and the §2.5 convergence bound yourself even when the
+gate stays silent.
+
 Checklist: checklists/5-whys-recurring.md
 Reference: docs/issue-1/proposals/customer-support.md §2/§3
 EOF
