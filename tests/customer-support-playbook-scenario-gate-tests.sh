@@ -1,146 +1,110 @@
 #!/usr/bin/env bash
 set -u
-
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-GATE="$REPO_ROOT/customer-support-playbook-scenario/hooks/gate.sh"
+. "$REPO_ROOT/tests/lib/harness.sh"
+harness_init
+GATE="$REPO_ROOT/customer-support-playbook-scenario/hooks/playbook-scenario-gate.sh"
 
-export CLAUDE_ROLE=customer-support
-CLAUDE_PROJECT_DIR="$(mktemp -d)"
-export CLAUDE_PROJECT_DIR
-git -C "$CLAUDE_PROJECT_DIR" init -q
+FULL_CONTENT="## Scenario: Refund request
+trigger: customer requests refund
+decision criteria: order within 30 days
+script: We can process your refund.
+escalation condition: if unresolved after L1, route to L2"
+run_case "full-pass" pass "$(make_payload Write customer-support/handbook.md "$FULL_CONTENT")"
 
-pass_count=0
-fail_count=0
-
-run_case() {
-  local name="$1"
-  local expect_deny="$2"
-  local payload="$3"
-
-  local output
-  output=$(echo "$payload" | bash "$GATE" 2>/dev/null)
-  local exit_code=$?
-
-  local denied=0
-  if echo "$output" | grep -q '"permissionDecision": "deny"'; then
-    denied=1
-  fi
-
-  local ok=0
-  if [ "$expect_deny" = "exit2" ]; then
-    if [ "$exit_code" -eq 2 ]; then
-      ok=1
-    fi
-  elif [ "$expect_deny" = "1" ]; then
-    if [ "$denied" -eq 1 ] && [ "$exit_code" -eq 0 ]; then
-      ok=1
-    fi
-  else
-    if [ "$denied" -eq 0 ] && [ "$exit_code" -eq 0 ]; then
-      ok=1
-    fi
-  fi
-
-  if [ "$ok" -eq 1 ]; then
-    echo "PASS: $name"
-    pass_count=$((pass_count + 1))
-  else
-    echo "FAIL: $name (exit_code=$exit_code output=$output)"
-    fail_count=$((fail_count + 1))
-  fi
-}
-
-FULL_CONTENT='## Scenario: Refund request\ntrigger: customer requests refund\ndecision criteria: order within 30 days\nscript: "We can process your refund."\nescalation condition: if unresolved after L1, route to L2'
-
-full_payload=$(python3 -c "
-import json
-print(json.dumps({
-    'tool_name': 'Write',
-    'tool_input': {
-        'file_path': 'customer-support/handbook.md',
-        'content': '''$FULL_CONTENT'''
-    }
-}))
-")
-
-run_case "full-pass" "0" "$full_payload"
-
-make_payload_missing() {
-  local content="$1"
-  python3 -c "
-import json, sys
-print(json.dumps({
-    'tool_name': 'Write',
-    'tool_input': {
-        'file_path': 'customer-support/handbook.md',
-        'content': sys.argv[1]
-    }
-}))
-" "$content"
-}
-
-# missing trigger/scenario facet (but keep 'scenario' marker word absent too - use playbook marker instead)
-missing_trigger=$(make_payload_missing "## Playbook
+MISSING_TRIGGER="## Playbook
 decision criteria: order within 30 days
 script: we can process your refund
-escalation condition: route to L2")
-run_case "deny-missing-trigger-or-scenario" "1" "$missing_trigger"
+escalation condition: route to L2"
+run_case "deny-missing-trigger-or-scenario" deny "$(make_payload Write customer-support/handbook.md "$MISSING_TRIGGER")"
 
-missing_decision=$(make_payload_missing "## Scenario: Refund request
+MISSING_DECISION="## Scenario: Refund request
 trigger: customer requests refund
 script: we can process your refund
-escalation condition: route to L2")
-run_case "deny-missing-decision-criteria" "1" "$missing_decision"
+escalation condition: route to L2"
+run_case "deny-missing-decision-criteria" deny "$(make_payload Write customer-support/handbook.md "$MISSING_DECISION")"
 
-missing_script=$(make_payload_missing "## Scenario: Refund request
+MISSING_SCRIPT="## Scenario: Refund request
 trigger: customer requests refund
 decision criteria: order within 30 days
-escalation condition: route to L2")
-run_case "deny-missing-script-or-response" "1" "$missing_script"
+escalation condition: route to L2"
+run_case "deny-missing-script-or-response" deny "$(make_payload Write customer-support/handbook.md "$MISSING_SCRIPT")"
 
-missing_escalation=$(make_payload_missing "## Scenario: Refund request
+MISSING_ESCALATION="## Scenario: Refund request
 trigger: customer requests refund
 decision criteria: order within 30 days
-script: we can process your refund")
-run_case "deny-missing-escalation-condition" "1" "$missing_escalation"
+script: we can process your refund"
+run_case "deny-missing-escalation-condition" deny "$(make_payload Write customer-support/handbook.md "$MISSING_ESCALATION")"
 
-# no marker present at all -> pass (not applicable)
-no_marker=$(make_payload_missing "This document has no relevant markers at all, just prose.")
-run_case "no-marker-pass" "0" "$no_marker"
+run_case "no-marker-pass" pass "$(make_payload Write customer-support/handbook.md "This document has no relevant markers at all, just prose.")"
 
-# kill switch bypass
-kill_switch_payload="$missing_escalation"
-kill_output=$(CUSTOMER_SUPPORT_PLAYBOOK_SCENARIO_GATE_OFF=1 bash -c "echo '$kill_switch_payload' | bash '$GATE'" 2>/dev/null)
-kill_exit=$?
-if [ "$kill_exit" -eq 0 ] && ! echo "$kill_output" | grep -q '"permissionDecision": "deny"'; then
-  echo "PASS: kill-switch-bypass"
-  pass_count=$((pass_count + 1))
+# semantic regression: a stray mention of "escalation condition" in unrelated
+# prose, never as its own labeled line, must still deny.
+PROSE_MENTION="## Scenario: Refund request
+trigger: customer requests refund
+decision criteria: order within 30 days
+script: we can process your refund
+note: no escalation condition applies here, handled entirely at L1 in prose"
+run_case_reason "regression-prose-mention-is-not-a-field" \
+  "$(make_payload Write customer-support/handbook.md "$PROSE_MENTION")" \
+  "playbook-element:escalation-condition"
+
+kill_out="$(printf '%s' "$(make_payload Write customer-support/handbook.md "$MISSING_ESCALATION")" | CUSTOMER_SUPPORT_PLAYBOOK_SCENARIO_GATE_OFF=1 bash "$GATE" 2>/dev/null)"
+kill_code=$?
+if [ "$kill_code" -eq 0 ] && [ -z "$kill_out" ]; then
+  echo "PASS: kill-switch-on"; pass_count=$((pass_count+1))
 else
-  echo "FAIL: kill-switch-bypass (exit_code=$kill_exit output=$kill_output)"
-  fail_count=$((fail_count + 1))
+  echo "FAIL: kill-switch-on (exit=$kill_code out=$kill_out)"; fail_count=$((fail_count+1))
 fi
 
-# malformed JSON
-malformed_output=$(echo 'not json' | bash "$GATE" 2>/dev/null)
-malformed_exit=$?
-if [ "$malformed_exit" -eq 2 ]; then
-  echo "PASS: malformed-json-exit2"
-  pass_count=$((pass_count + 1))
+unrec_code=0
+printf '%s' "$(make_payload Write customer-support/handbook.md "$MISSING_ESCALATION")" | CUSTOMER_SUPPORT_PLAYBOOK_SCENARIO_GATE_OFF=maybe bash "$GATE" >/dev/null 2>&1
+unrec_code=$?
+if [ "$unrec_code" -eq 2 ]; then
+  echo "PASS: kill-switch-unrecognized-value-stays-active"; pass_count=$((pass_count+1))
 else
-  echo "FAIL: malformed-json-exit2 (exit_code=$malformed_exit)"
-  fail_count=$((fail_count + 1))
+  echo "FAIL: kill-switch-unrecognized-value-stays-active (exit=$unrec_code)"; fail_count=$((fail_count+1))
 fi
 
-# non-Write/Edit/MultiEdit passthrough
-other_tool_payload=$(python3 -c "
-import json
-print(json.dumps({'tool_name': 'Read', 'tool_input': {'file_path': 'customer-support/handbook.md'}}))
-")
-run_case "non-write-edit-multiedit-passthrough" "0" "$other_tool_payload"
+for bad in "not json" "" "[1,2,3]"; do
+  code=0
+  printf '%s' "$bad" | bash "$GATE" >/dev/null 2>&1
+  code=$?
+  if [ "$code" -eq 2 ]; then
+    echo "PASS: malformed-json(${bad:-empty})"; pass_count=$((pass_count+1))
+  else
+    echo "FAIL: malformed-json(${bad:-empty}) (exit=$code)"; fail_count=$((fail_count+1))
+  fi
+done
 
-echo ""
-echo "Summary: $pass_count passed, $fail_count failed"
-if [ "$fail_count" -gt 0 ]; then
-  exit 1
-fi
-exit 0
+run_case "non-write-edit-multiedit-passthrough" pass "$(make_payload Read customer-support/handbook.md "")"
+
+seed_file "customer-support/handbook.md" "## Scenario: Refund request
+trigger: customer requests refund
+OLDMARK
+OLDMARK
+script: we can process your refund
+escalation condition: route to L2"
+edit_payload="$(make_edit_payload customer-support/handbook.md "OLDMARK" "decision criteria: order within 30 days" true)"
+run_case "edit-replace-all-true-multi-occurrence" pass "$edit_payload"
+
+seed_file "customer-support/handbook.md" "## Scenario: Refund request
+FIRSTMARK
+FIRSTMARK
+SECONDMARK
+script: we can process your refund"
+multi_payload="$(make_multiedit_payload customer-support/handbook.md \
+  "FIRSTMARK" "trigger: customer requests refund" true \
+  "SECONDMARK" "decision criteria: order within 30 days" false)"
+run_case "multiedit-mixed-replace-all" deny "$multi_payload"
+
+abs_path="$CLAUDE_PROJECT_DIR/customer-support/handbook.md"
+run_case "absolute-path" deny "$(make_payload Write "$abs_path" "$MISSING_ESCALATION")"
+run_case "dot-prefixed-path" deny "$(make_payload Write "./customer-support/handbook.md" "$MISSING_ESCALATION")"
+
+bash_payload="$(make_bash_payload "cat > customer-support/handbook.md <<'EOF'
+$MISSING_ESCALATION
+EOF")"
+run_case "bash-write-same-target" deny "$bash_payload"
+
+harness_summary

@@ -6,7 +6,7 @@
     "PreToolUse": [
       {
         "matcher": ".*",
-        "hooks": [ { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/gate.sh" } ]
+        "hooks": [ { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/five-whys-gate.sh" } ]
       }
     ]
   }
