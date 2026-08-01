@@ -6,7 +6,8 @@
 # document. Sources core's gate-lib.sh (issue-72 gate-house standard),
 # reference-adopt not vendor (issue-13).
 
-. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../core" && pwd -P)}/hooks/lib/gate-lib.sh"
+. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../core" && pwd -P)}/hooks/lib/gate-lib.sh" \
+  || { echo "phase1-order-gate.sh: cannot source gate-lib.sh" >&2; exit 2; }
 gate_trap_fail_closed
 set -uo pipefail
 gate_kill_switch_active "${CUSTOMER_SUPPORT_PHASE1_ORDER_GATE_OFF:-}" || { trap - EXIT; exit 0; }
@@ -55,7 +56,7 @@ PATH_RE = re.compile(r'^docs/issue-([0-9]+)/proposals/customer-support\.md$')
 
 def candidate_paths():
     if tool == "Bash":
-        return re.findall(r'[\w./~-]+', tool_input.get("command", ""))
+        return gate_lib.gate_bash_write_targets(tool_input.get("command", ""))
     fp = tool_input.get("file_path")
     return [fp] if isinstance(fp, str) else []
 

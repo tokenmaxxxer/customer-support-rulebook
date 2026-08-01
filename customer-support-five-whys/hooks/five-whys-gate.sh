@@ -4,7 +4,8 @@
 # core's gate-lib.sh (issue-72 gate-house standard), reference-adopt not
 # vendor (issue-13).
 
-. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../core" && pwd -P)}/hooks/lib/gate-lib.sh"
+. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../core" && pwd -P)}/hooks/lib/gate-lib.sh" \
+  || { echo "five-whys-gate.sh: cannot source gate-lib.sh" >&2; exit 2; }
 gate_trap_fail_closed
 set -uo pipefail
 gate_kill_switch_active "${CUSTOMER_SUPPORT_FIVE_WHYS_GATE_OFF:-}" || { trap - EXIT; exit 0; }
@@ -50,7 +51,7 @@ PATH_RE = re.compile(r'^customer-support/handbook\.md$|^docs/issue-[0-9]+/report
 
 def candidate_paths():
     if tool == "Bash":
-        return re.findall(r'[\w./~-]+', tool_input.get("command", ""))
+        return gate_lib.gate_bash_write_targets(tool_input.get("command", ""))
     fp = tool_input.get("file_path")
     return [fp] if isinstance(fp, str) else []
 
@@ -93,7 +94,11 @@ if not has_label or question_count < 5:
          f"Per {DOC_REF}, every phase-2 deliverable/record write must carry: when "
          "content flags a repeat/recurring inbound pattern: a 5-whys check with at "
          "least 5 distinct question-shaped lines, present in the same section, before "
-         "any hand-off decision.")
+         "any hand-off decision. This mechanical check verifies presence-and-count of "
+         "question-shaped lines only ('5-whys' label + >=5 lines ending '?') — it does "
+         "not verify that the five questions match checklists/5-whys-recurring.md's "
+         "specific causal-chain questions, nor the checklist's §2.5 convergence rule; "
+         "those remain the judgment layer's responsibility.")
 
 sys.exit(0)
 PYEOF

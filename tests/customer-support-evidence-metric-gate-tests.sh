@@ -56,4 +56,17 @@ no metric here
 EOF")"
 run_case "bash-write-same-target" deny "$bash_payload"
 
+# mandatory case group 7 (issue-16 / core issue-75 parity): missing-core
+# CLAUDE_PLUGIN_ROOT_CORE pointed at a nonexistent path (no valid relative
+# fallback) must make the guarded source line deny (exit 2), not silently
+# allow.
+missing_core_out="$(printf '%s' "$(make_payload Write irrelevant/probe.md "x")" \
+    | CLAUDE_PLUGIN_ROOT_CORE="$(mktemp -d)/no-such-core" bash "$GATE" 2>&1)"
+missing_core_code=$?
+if [ "$missing_core_code" -eq 2 ]; then
+  echo "PASS: missing-core-denies"; pass_count=$((pass_count+1))
+else
+  echo "FAIL: missing-core-denies (exit=$missing_core_code out=$missing_core_out)"; fail_count=$((fail_count+1))
+fi
+
 harness_summary
